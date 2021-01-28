@@ -1,0 +1,171 @@
+---
+title: "horseweed"
+author: "Maxwel Coura Oliveira"
+date: "1/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE
+  )
+```
+
+```{r}
+library(tidyverse)
+library(glmmTMB)
+library(car)
+library(emmeans)
+```
+
+
+```{r load-data}
+# cleaning
+horseweed <- read_csv("2020_Marestail_Data.csv") %>% 
+  janitor::clean_names() %>% 
+  pivot_longer(cols = x7dat_control_percent:x21dat_control_percent,
+               names_to = "dat", values_to = "weed_control") %>% 
+  rename(biomass_g = biomass_21dat_g) %>% 
+  mutate(dat = fct_recode(dat,
+    "7" = "x7dat_control_percent",
+    "14" = "x14dat_control_percent",
+    "21" = "x21dat_control_percent"
+  )) %>% 
+  mutate(weed_control = weed_control/100,
+         weed_control = case_when(
+    weed_control == 1   ~ 0.999,
+    weed_control == 0   ~ 0.001,
+    TRUE                ~ weed_control
+  )) %>% 
+  mutate(biomass_g = if_else(is.na(biomass_g), 0, biomass_g))
+```
+
+
+```{r}
+horseweed1 <- horseweed %>% 
+  filter(trt != "Check") %>% # removing untreated control for weed control analysis
+  nest(run, id, rep, trt, weed_control, biomass_g, biomass_reduction_percent)
+```
+
+```{r model-function}
+glmmTMB_model <- function(df) {
+  glmmTMB(weed_control ~ trt + (1|rep), beta_family(link = "logit"), data = df)
+}
+```
+
+
+```{r model}
+horseweed2 <- horseweed1 %>% 
+  mutate(model = map(data, glmmTMB_model))
+```
+
+
+
+
+```{r anova}
+horseweed3 <- horseweed2 %>% 
+  mutate(anova = map(model, glmmTMB:::Anova.glmmTMB))
+```
+
+
+
+
+
+```{r check-anova}
+horseweed3 %>% 
+  filter(pop == 3 & dat == 14) %>% 
+  unnest(anova)
+```
+
+
+
+
+
+```{r emmeans_function}
+emmeans_function <- function(model) {
+  emmeans(model, ~ trt, cont="pairwise", adjust="none", type="response", alpha=0.05)
+}
+```
+
+```{r}
+horseweed4 <- horseweed3 %>% 
+  mutate(
+    emmeans = pmap(
+      .l = list(
+        object = model, 
+        specs = "trt",
+        type="response",
+#        cont="pairwise", 
+        adjust="none"
+      ),
+      .f = emmeans
+    )
+  ) 
+```
+
+```{r lsmeans}
+# full data frame with all means and CIs 
+horseweed4 %>% 
+  mutate(emm2 = map(emmeans, data.frame)) %>% 
+  unnest(emm2)
+#You can filter and make a data frame for each population and dat
+```
+
+
+```{r cld-function}
+cld_function <- function(emmeans) {
+  if(requireNamespace("multcomp")) {
+    multcomp::cld(emmeans, alpha=0.05, Letters=letters, adjust="none", reversed = TRUE)
+}
+}
+```
+
+
+```{r cld}
+horseweed5 <- horseweed4 %>% 
+  mutate(cld = map(emmeans, cld_function))
+```
+
+
+```{r}
+# here is similar to emmeans but you have letters
+horseweed5 %>% 
+  unnest(cld)
+# You can also filter and make specific data frames
+```
+
+```{r}
+# I want to make a table of your fitted values
+final_means <- horseweed5 %>% 
+  unnest(cld)
+```
+
+
+
+```{r}
+# Now compared to the raw means
+comparison <- horseweed %>% 
+  filter(trt != "Check") %>% 
+  group_by(trt, pop, dat) %>% 
+  summarise(raw_mean = mean(weed_control)) %>% 
+  left_join(final_means, by = c("trt", "pop", "dat")) %>% 
+  select(trt, pop, dat, raw_mean, response) %>% 
+  mutate(diff = round(response - raw_mean, 2))
+comparison
+```
+
+```{r}
+comparison %>% 
+  ggplot(aes(x = raw_mean, y = response)) + 
+  geom_jitter(alpha = 0.5)
+
+# Strong correlation between raw and fitter means (response) - You are good
+```
+
+
+```{r}
+# 0.98 correlation
+cor.test(comparison$raw_mean, y = comparison$response, method=c("pearson"))
+```
+

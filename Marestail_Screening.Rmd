@@ -1,0 +1,819 @@
+---
+title: "Marestail_Screening"
+author: "Alexandre Tonon Rosa"
+date: "9/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Loading Packages
+```{r}
+.libPaths("C:/Users/alexa/Documents/Nebraska/Classes/Data Management, Visualization/Rlibrary")
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("USAboundariesData")
+#library(PBSmapping); 
+library(tidyverse);library(dplyr);library(gridExtra);library(ggpubr);library(ggplot2);
+library(USAboundaries);library(sf);library(ggthemes);library(purrr);
+library(coda);library(agricolae);library(lme4);library(lmerTest);library(emmeans);library(nlme);
+library(car);library(Hmisc);library(ggfortify);library(corrplot);library(MASS); library(cowplot);
+library(mvnormtest);library(colorspace);library(wesanderson);library(performance);
+library(readr);library(see);library(glmmTMB);library(RCurl);library(kableExtra);library(multcompView); library(skimr); library(ggsn);
+#install.packages("USAboundariesData", repos = "http://packages.ropensci.org", type = "source")
+#Rtools not compatible
+```
+#Plotting in Wisconsin Map (SF new way)
+```{r}
+# Import Data
+coordinates = read.csv("C:/Users/alexa/Documents/Post Doc UW-Madison/Projects/Marestail Screening/Marestail R/2020_Marestail_Coordinates.csv", header=TRUE)
+class(coordinates)
+
+#Remove unnecessary data
+coordinates<- coordinates %>% 
+  dplyr::select(-Crop, -Date.Collected)
+
+# Creating an object with Wisconsin and Illinois
+wisconsin<-us_states(states="WI")
+illinois<-us_states(states="IL")
+class(wisconsin)
+class(illinois)
+wisconsin
+illinois
+
+# illinois2<-filter(.data = illinois,
+#                    trt=="Check")
+
+# PLotting WI 
+wisconsin %>% 
+  ggplot()+
+  geom_sf()
+
+# PLotting IL 
+illinois %>% 
+  ggplot()+
+  geom_sf()
+
+#checking WI and IL counties
+wi_counties <- us_counties(states="WI")
+il_counties <- us_counties(states="IL")
+
+class(wi_counties)
+class(il_counties)
+
+wi_counties %>%
+  ggplot()+
+  geom_sf()
+
+il_counties %>%
+  ggplot()+
+  geom_sf()
+
+# Transforming "coordinates" into spatial object
+coordinates
+coordinates<-st_as_sf(coordinates,
+                      coords = c("Long", "Lat"),
+                      crs = 4326)
+
+# Checking studies class
+coordinates
+class(coordinates)
+summary(coordinates)
+coordinates %>%
+  ggplot()+
+  geom_sf()
+
+#Plotting ALL
+ggplot()+
+geom_sf(data = wisconsin,
+        fill=NA,
+        color="black",
+        size=.8)+
+  geom_sf(data = wi_counties,
+          color="black",
+          size=.4)+
+  geom_sf(data = illinois,
+        fill=NA,
+        color="black",
+        size=.8)+
+  geom_sf(data = il_counties,
+          color="black",
+          size=.4)+
+  geom_sf(data = coordinates,
+          size=2, shape=21,
+          color="black",
+          fill="red",
+          show.legend = F)+
+  # geom_sf_label(data = coordinates,
+  #               aes(label=Location),
+  #               hjust=-0.15,
+  #               vjust=0,
+  #               size=3,
+  #               label.padding = unit(0.05,"lines"))+
+  coord_sf()+
+  theme_map()+
+  north(wisconsin, location = 'topright', symbol = 3, scale = 0.15) +
+  labs(title = "Marestail Populations Selected \n in Wisconsin and Illinois")+
+  theme(legend.position = c(.01,-.16),
+        legend.direction = "horizontal",
+        plot.title = element_text(size=15, hjust = 0.5))
+
+```
+#Import Dataset to R
+```{r}
+Marestail <- read_csv("C:/Users/alexa/Documents/Post Doc UW-Madison/Projects/Marestail Screening/Marestail R/2020_Marestail_Data.csv")
+head(Marestail)
+```
+# Changing variable type to factor and Data Wrangling
+```{r}
+# Creating variables #
+Marestail1<-mutate(.data = Marestail,
+  DAT7_control=round(`7DAT_control_%`/100,4),
+  DAT14_control=round(`14DAT_control_%`/100,4),
+  DAT21_control=round(`21DAT_control_%`/100,4),
+  Biomass_reduction=round(`Biomass_reduction_%`/100,4))
+
+#Change Treatment Names
+Marestail1$trt[Marestail1$trt=="1x Gly"]<-"Glyphosate (1x)"
+Marestail1$trt[Marestail1$trt=="3x Gly"]<-"Glyphosate (3x)"
+Marestail1$trt[Marestail1$trt=="Mesot"]<-"Mesotrione"
+Marestail1$trt[Marestail1$trt=="Atraz"]<-"Atrazine"
+Marestail1$trt[Marestail1$trt=="Saflu"]<-"Saflufenacil"
+Marestail1$trt[Marestail1$trt=="Paraq"]<-"Paraquat"
+Marestail1$trt[Marestail1$trt=="Dicam"]<-"Dicamba"
+Marestail1$trt[Marestail1$trt=="Gluf"]<-"Glufosinate"
+Marestail1$trt[Marestail1$trt=="Imaz"]<-"Imazethapyr"
+
+# Transforming % to Decimal numbers #
+Marestail1$DAT7_control[Marestail1$DAT7_control==0.000]<-0.001
+Marestail1$DAT7_control[Marestail1$DAT7_control==1.000]<-0.999
+Marestail1$DAT14_control[Marestail1$DAT14_control==0.000]<-0.001
+Marestail1$DAT14_control[Marestail1$DAT14_control==1.000]<-0.999
+Marestail1$DAT21_control[Marestail1$DAT21_control==0.000]<-0.001
+Marestail1$DAT21_control[Marestail1$DAT21_control==1.000]<-0.999
+Marestail1$Biomass_reduction[Marestail1$Biomass_reduction<=0.000]<-0.001
+Marestail1$Biomass_reduction[Marestail1$Biomass_reduction>=1.000]<-0.999
+
+#Rename "trt" to "Herbicide"
+Marestail1<-rename(Marestail1, c("Herbicide" = "trt"))
+
+# Changing variable type to factor #
+Marestail1$run<-factor(Marestail1$run)
+Marestail1$id<-factor(Marestail1$id)
+Marestail1$pop<-factor(Marestail1$pop)
+Marestail1$rep<-factor(Marestail1$rep)
+Marestail1$Herbicide<-factor(Marestail1$Herbicide)
+Marestail1$DAT7_control<-as.numeric(Marestail1$DAT7_control)
+Marestail1$DAT14_control<-as.numeric(Marestail1$DAT14_control)
+Marestail1$DAT21_control<-as.numeric(Marestail1$DAT21_control)
+Marestail1$Biomass_reduction<-as.numeric(Marestail1$Biomass_reduction)
+
+Marestail1 %>% glimpse()
+```
+#Check for Data Normality
+```{r}
+#Levene Test
+leveneTest(`7DAT_control` ~ pop*trt, data = Marestail1) 
+leveneTest(`14DAT_control` ~ pop*trt, data = Marestail1) 
+leveneTest(`21DAT_control` ~ pop*trt, data = Marestail1) 
+
+leveneTest(Marestail1$`7DAT_control`, Marestail1$trt)
+leveneTest(Marestail1$`14DAT_control`, Marestail1$trt)
+leveneTest(Marestail1$`21DAT_control`, Marestail1$trt)
+
+leveneTest(Marestail1$`7DAT_control`, Marestail1$pop)
+leveneTest(Marestail1$`14DAT_control`, Marestail1$pop)
+leveneTest(Marestail1$`21DAT_control`, Marestail1$pop)
+
+#Other Normality Tests
+`7DAT_control`<-aov(`7DAT_control` ~ pop*trt, data = Marestail1)
+summary(`7DAT_control`)
+old.par=par(mfrow=c(2,2))
+plot(`7DAT_control`)
+par(old.par)
+
+#Fligner Test
+fligner.test(Marestail1$`7DAT_control`, Marestail1$trt)
+fligner.test(Marestail1$`7DAT_control`, Marestail1$pop)
+```
+#ANOVAs and Graphs
+```{r}
+#Completely Randomized Design: https://stat.ethz.ch/~meier/teaching/anova/completely-randomized-designs.html
+
+####Control 7DAT####
+
+#Selecting Data
+Marestail_7<- dplyr::select(.data = Marestail1, 
+                      run, pop, rep, Herbicide, DAT7_control)
+Marestail_7<-filter(.data = Marestail_7,
+                   Herbicide!="Check")
+Marestail_7 <- na.omit(Marestail_7)
+head(Marestail_7)
+
+#ANOVA
+control_7DAT <- glmmTMB(DAT7_control ~ Herbicide, beta_family(link = "logit"), data = Marestail_7)
+glmmTMB:::Anova.glmmTMB(control_7DAT) 
+emmip(control_7DAT, ~ Herbicide, type = "response")
+
+#Herbicide
+pig.cells<-emmeans(control_7DAT, ~Herbicide, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells
+plot(pig.cells, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld<-multcomp::cld(pig.cells$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld
+
+nd<-as.data.frame(pig.cells$emmeans)
+kable(nd)
+#write.csv(nd, file = "conf_intervals_25DAT.csv")
+
+# Graph Beta Distribution
+control7<-ggplot(nd, aes(x=reorder(Herbicide,response), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + 
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Horseweed control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Horseweed Control at 7 DAT", y="Horseweed control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed")+ #need to use hline because will flip later
+scale_y_continuous(limits = c(0,100), breaks = seq(0,100, by =10))+
+  #facet_wrap(~Location)+
+ theme(axis.title = element_text(size=20),
+     axis.text = element_text(size=15),
+     #axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1),
+     #axis.text.x = element_blank(),
+     legend.position = "none",
+     #strip.text = element_text(size = 25),
+    plot.title = element_text(hjust = 0.5, size = 20))+
+ coord_flip() #this will flip the graph
+control7
+
+ggsave("control7.png", width = 7, height = 6, dpi = 400)
+
+#Computing Stats
+Stats_control_7<- group_by(Marestail_7, Herbicide) %>% 
+  summarise(
+    count = n(),
+    mean = mean(DAT7_control, na.rm = TRUE),
+    sd = sd(DAT7_control, na.rm = TRUE),
+    se = sd/sqrt(n()),
+    ci = qnorm(0.975)*se,
+    lower = mean-ci,
+    upper = mean+ci,
+  )
+Stats_control_7
+
+#Graph Normal Distribution
+control7_normal<-ggplot(Stats_control_7, aes(x=reorder(Herbicide,mean), y=mean*100, color=Herbicide)) + 
+geom_point(size=4) + 
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Horseweed control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Horseweed Control at 7 DAT", y="Horseweed control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower*100, ymax = upper*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed")+ #need to use hline because will flip later
+scale_y_continuous(limits = c(0,100), breaks = seq(0,100, by =10))+
+  #facet_wrap(~Location)+
+ theme(axis.title = element_text(size=20),
+     axis.text = element_text(size=15),
+     #axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1),
+     #axis.text.x = element_blank(),
+     legend.position = "none",
+     #strip.text = element_text(size = 25),
+    plot.title = element_text(hjust = 0.5, size = 20))+
+ coord_flip() #this will flip the graph
+control7_normal
+
+ggsave("control7_normal.png", width = 7, height = 6, dpi = 400)
+
+####Control 14DAT####
+
+#Selecting Data
+Marestail_14<- dplyr::select(.data = Marestail1, 
+                      run, pop, rep, Herbicide, DAT14_control)
+Marestail_14<-filter(.data = Marestail_14,
+                   Herbicide!="Check")
+Marestail_14 <- na.omit(Marestail_14)
+head(Marestail_14)
+
+#ANOVA Beta Distribution
+control_14DAT <- glmmTMB(DAT14_control ~ Herbicide, beta_family(link = "logit"), data = Marestail_14)
+glmmTMB:::Anova.glmmTMB(control_14DAT) #Location x Herbicide is significant
+emmip(control_14DAT, ~ Herbicide, type = "response")
+
+#Herbicide
+pig.cells14<-emmeans(control_14DAT, ~Herbicide, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells14
+plot(pig.cells14, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld14<-multcomp::cld(pig.cells14$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld14
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd14<-as.data.frame(pig.cells14$emmeans)
+kable(nd14)
+
+# Graph
+control14<-ggplot(nd14, aes(x=reorder(Herbicide), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+#theme_bw() + labs(title = "Waterhemp Control at 25 Days After Treatment", y="Waterhemp control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed") #need to use hline because will flip later
+#facet_wrap(~Location)+
+#  theme(axis.title = element_text(size=20),
+#      axis.text = element_text(size=20),
+#      axis.text.x = element_text(angle = 90),
+#      legend.position = "none",
+#      strip.text = element_text(size = 25),
+#     plot.title = element_text(hjust = 0.5, size = 15))+
+#  coord_flip() #this will flip the graph
+control14
+
+#Computing Stats
+Stats_control_14<- group_by(Marestail_14, Herbicide) %>% 
+  summarise(
+    count = n(),
+    mean = mean(DAT14_control, na.rm = TRUE),
+    sd = sd(DAT14_control, na.rm = TRUE),
+    se = sd/sqrt(n()),
+    ci = qnorm(0.975)*se,
+    lower = mean-ci,
+    upper = mean+ci,
+  )
+Stats_control_14
+
+#Graph Normal Distribution
+control14_normal<-ggplot(Stats_control_14, aes(x=reorder(Herbicide,mean), y=mean*100, color=Herbicide)) + 
+geom_point(size=4) + 
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Horseweed control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Horseweed Control at 14 DAT", y="Horseweed control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower*100, ymax = upper*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed")+ #need to use hline because will flip later
+scale_y_continuous(limits = c(0,100), breaks = seq(0,100, by =10))+
+  #facet_wrap(~Location)+
+ theme(axis.title = element_text(size=20),
+     axis.text = element_text(size=15),
+     #axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1),
+     #axis.text.x = element_blank(),
+     legend.position = "none",
+     #strip.text = element_text(size = 25),
+    plot.title = element_text(hjust = 0.5, size = 20))+
+ coord_flip() #this will flip the graph
+control14_normal
+
+ggsave("control14_normal.png", width = 7, height = 6, dpi = 400)
+
+####Control 21DAT####
+
+#Selecting Data
+Marestail_21<- dplyr::select(.data = Marestail1, 
+                      run, pop, rep, Herbicide, DAT21_control)
+Marestail_21<-filter(.data = Marestail_21,
+                   Herbicide!="Check")
+Marestail_21 <- na.omit(Marestail_21)
+head(Marestail_21)
+
+control_21DAT <- glmmTMB(DAT21_control ~ Herbicide, beta_family(link = "logit"), data = Marestail_21)
+glmmTMB:::Anova.glmmTMB(control_21DAT) 
+emmip(control_21DAT, ~ Herbicide, type = "response")
+#Herbicide
+pig.cells21<-emmeans(control_21DAT, ~Herbicide, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells21
+plot(pig.cells21, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld21<-multcomp::cld(pig.cells21$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld21
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd21<-as.data.frame(pig.cells21$emmeans)
+kable(nd21)
+#write.csv(nd21, file = "conf_intervals_25DAT.csv")
+
+# Graph
+control21<-ggplot(nd21, aes(x=reorder(Herbicide,response), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + 
+scale_y_continuous(limits = c(0,100), breaks = seq(0,100, by =10))+
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Horseweed control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Horseweed Control at 21 DAT", y="Horseweed control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed")+ #need to use hline because will flip later
+#facet_wrap(~Location)+
+ theme(axis.title = element_text(size=20),
+     axis.text = element_text(size=15),
+     #axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1),
+     #axis.text.x = element_blank(),
+     legend.position = "none",
+     #strip.text = element_text(size = 25),
+    plot.title = element_text(hjust = 0.5, size = 20))+
+ coord_flip() #this will flip the graph
+control21
+
+ggsave("control21.png", width = 7, height = 6, dpi = 400)
+
+#Computing Stats
+Stats_Marestail21<- group_by(Marestail_21, Herbicide) %>% 
+  summarise(
+    count = n(),
+    mean = mean(DAT21_control, na.rm = TRUE),
+    sd = sd(DAT21_control, na.rm = TRUE),
+    se = sd/sqrt(n()),
+    ci = qnorm(0.975)*se,
+    lower = mean-ci,
+    upper = mean+ci,
+  )
+Stats_Marestail21
+
+#Graph Normal Distribution
+control21_normal<-ggplot(Stats_Marestail21, aes(x=reorder(Herbicide,mean), y=mean*100, color=Herbicide)) + 
+geom_point(size=4) + 
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Horseweed control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Horseweed Control at 21 DAT", y="Horseweed control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower*100, ymax = upper*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed")+ #need to use hline because will flip later
+scale_y_continuous(limits = c(0,100), breaks = seq(0,100, by =10))+
+  #facet_wrap(~Location)+
+ theme(axis.title = element_text(size=20),
+     axis.text = element_text(size=15),
+     #axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1),
+     #axis.text.x = element_blank(),
+     legend.position = "none",
+     #strip.text = element_text(size = 25),
+    plot.title = element_text(hjust = 0.5, size = 20))+
+ coord_flip() #this will flip the graph
+control21_normal
+
+ggsave("control21_normal.png", width = 7, height = 6, dpi = 400)
+
+####POPULATIONS 7DAT ####
+populations_7DAT <- glmmTMB(`7DAT_control` ~ pop, beta_family(link = "logit"), data = Marestail1)
+glmmTMB:::Anova.glmmTMB(populations_7DAT) #Location x Herbicide is significant
+emmip(populations_7DAT, ~ pop, type = "response")
+#Herbicide by Location
+pig.cells<-emmeans(populations_7DAT, ~pop, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells
+plot(pig.cells, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld<-CLD(pig.cells$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd<-as.data.frame(pig.cells$emmeans)
+kable(nd)
+write.csv(nd, file = "conf_intervals_25DAT.csv")
+# Graph
+populations7<-ggplot(nd, aes(x=reorder(pop), y=response*100, color=pop)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+#theme_bw() + labs(title = "Waterhemp Control at 25 Days After Treatment", y="Waterhemp control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed") #need to use hline because will flip later
+#facet_wrap(~Location)+
+#  theme(axis.title = element_text(size=20),
+#      axis.text = element_text(size=20),
+#      axis.text.x = element_text(angle = 90),
+#      legend.position = "none",
+#      strip.text = element_text(size = 25),
+#     plot.title = element_text(hjust = 0.5, size = 15))+
+#  coord_flip() #this will flip the graph
+populations7
+
+####POPULATIONS 14DAT ####
+populations_14DAT <- glmmTMB(`14DAT_control` ~ pop, beta_family(link = "logit"), data = Marestail1)
+glmmTMB:::Anova.glmmTMB(populations_14DAT) #Location x Herbicide is significant
+emmip(populations_14DAT, ~ pop, type = "response")
+#Herbicide by Location
+pig.cells14<-emmeans(populations_14DAT, ~pop, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells14
+plot(pig.cells14, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld14<-CLD(pig.cells14$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld14
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd14<-as.data.frame(pig.cells14$emmeans)
+kable(nd14)
+
+# Graph
+populations14<-ggplot(nd14, aes(x=reorder(pop), y=response*100, color=pop)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+#theme_bw() + labs(title = "Waterhemp Control at 25 Days After Treatment", y="Waterhemp control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed") #need to use hline because will flip later
+#facet_wrap(~Location)+
+#  theme(axis.title = element_text(size=20),
+#      axis.text = element_text(size=20),
+#      axis.text.x = element_text(angle = 90),
+#      legend.position = "none",
+#      strip.text = element_text(size = 25),
+#     plot.title = element_text(hjust = 0.5, size = 15))+
+#  coord_flip() #this will flip the graph
+populations14
+
+####POPULATIONS 21DAT ####
+populations_21DAT <- glmmTMB(`21DAT_control` ~ pop, beta_family(link = "logit"), data = Marestail1)
+glmmTMB:::Anova.glmmTMB(populations_21DAT) #Location x Herbicide is significant
+emmip(populations_21DAT, ~ pop, type = "response")
+#Herbicide by Location
+pig.cells21<-emmeans(populations_21DAT, ~pop, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells21
+plot(pig.cells21, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld21<-CLD(pig.cells21$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld21
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd21<-as.data.frame(pig.cells21$emmeans)
+kable(nd21)
+
+# Graph
+populations21<-ggplot(nd21, aes(x=reorder(pop), y=response*100, color=pop)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+#theme_bw() + labs(title = "Waterhemp Control at 25 Days After Treatment", y="Waterhemp control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed") #need to use hline because will flip later
+#facet_wrap(~Location)+
+#  theme(axis.title = element_text(size=20),
+#      axis.text = element_text(size=20),
+#      axis.text.x = element_text(angle = 90),
+#      legend.position = "none",
+#      strip.text = element_text(size = 25),
+#     plot.title = element_text(hjust = 0.5, size = 15))+
+#  coord_flip() #this will flip the graph
+populations21
+
+
+####Biomass Reduction####
+Marestail2<- dplyr::select(.data = Marestail1, 
+                      run, pop, rep, Herbicide, Biomass_reduction)
+Marestail2 <- na.omit(Marestail2)
+head(Marestail2)
+# Marestail2<-filter(.data = Marestail2,
+#                    Herbicide %in% c("2,4-D","Dicamba","Glyphosate (1x)","Glyphosate (3x)","Imazethapyr", "Mesotrione"))
+
+biomass_reduction <- glmmTMB(Biomass_reduction ~ Herbicide, beta_family(link = "logit"), data = Marestail2)
+glmmTMB:::Anova.glmmTMB(biomass_reduction) 
+emmip(biomass_reduction, ~ Herbicide, type = "response")
+
+#Herbicide
+pig.cellsBR<-emmeans(biomass_reduction, ~Herbicide, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cellsBR
+plot(pig.cellsBR, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cldBR<-multcomp::cld(pig.cellsBR$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cldBR
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+ndBR<-as.data.frame(pig.cellsBR$emmeans)
+kable(ndBR)
+
+# Graph
+biomass_red<-ggplot(ndBR, aes(x=reorder(Herbicide), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Marestail Biomass Reduction at 21 Days After Treatment", y="Biomass Reduction (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed") #need to use hline because will flip later
+# facet_wrap(~pop)+
+#  theme(axis.title = element_text(size=20),
+#      axis.text = element_text(size=20),
+#      axis.text.x = element_text(angle = 90),
+#      legend.position = "none",
+#      strip.text = element_text(size = 25),
+#     plot.title = element_text(hjust = 0.5, size = 15))
+#  coord_flip() #this will flip the graph
+biomass_red
+
+ggsave("control25.png", width = 9, height = 12, dpi = 400)
+
+#Computing Stats
+Stats_Biomass_Reduction<- group_by(Marestail2, Herbicide) %>% 
+  summarise(
+    count = n(),
+    mean = mean(Biomass_reduction, na.rm = TRUE),
+    sd = sd(Biomass_reduction, na.rm = TRUE),
+    se = sd/sqrt(n()),
+    ci = qnorm(0.975)*se,
+    lower = mean-ci,
+    upper = mean+ci,
+  )
+Stats_Biomass_Reduction
+
+
+####Control 21DAT BY POPULATION####
+Marestail3<-filter(.data = Marestail2,
+                   pop!="7")
+# Marestail4<-filter(.data = Marestail3,
+#                    pop!="9")
+
+control_21DAT <- glmmTMB(`21DAT_control` ~ pop*Herbicide, beta_family(link = "logit"), data = Marestail3)
+glmmTMB:::Anova.glmmTMB(control_21DAT) 
+emmip(control_21DAT, ~ pop*Herbicide, type = "response")
+#Herbicide
+pig.cells21<-emmeans(control_21DAT, ~pop*Herbicide, by="pop", contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells21
+plot(pig.cells21, by="pop", comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld21<-CLD(pig.cells21$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld21
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd21<-as.data.frame(pig.cells21$emmeans)
+kable(nd21)
+#write.csv(nd21, file = "conf_intervals_25DAT.csv")
+
+# Graph
+control21<-ggplot(nd21, aes(x=reorder(Herbicide), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Marestail Control at 21 Days After Treatment by Population in WI", y="Marestail control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed")+ #need to use hline because will flip later
+facet_wrap(~pop)
+ # theme(axis.title = element_text(size=20),
+ #     axis.text = element_text(size=20),
+ #     axis.text.x = element_text(angle = 90),
+ #     legend.position = "none",
+ #     strip.text = element_text(size = 25),
+ #    plot.title = element_text(hjust = 0.5, size = 15))+
+ # coord_flip() #this will flip the graph
+control21
+
+
+
+####Control 21DAY - POPULATION 7 ####
+## POPULATION 7 ##
+# Marestail5<-filter(.data = Marestail2,
+#                    pop=="7"|pop=="9")
+Marestail7<-filter(.data = Marestail1,
+                   pop=="7")
+
+control_21DAT <- glmmTMB(`21DAT_control` ~ Herbicide, beta_family(link = "logit"), data = Marestail7)
+glmmTMB:::Anova.glmmTMB(control_21DAT) 
+emmip(control_21DAT, ~ Herbicide, type = "response")
+#Herbicide
+pig.cells21<-emmeans(control_21DAT, ~Herbicide, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells21
+plot(pig.cells21, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld21<-CLD(pig.cells21$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld21
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd21<-as.data.frame(pig.cells21$emmeans)
+kable(nd21)
+#write.csv(nd21, file = "conf_intervals_25DAT.csv")
+
+# Graph
+control21<-ggplot(nd21, aes(x=reorder(Herbicide), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Marestail Control at 21 Days After Treatment At Population 7", y="Marestail control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed") #need to use hline because will flip later
+# facet_wrap(~pop)
+#   theme(axis.title = element_text(size=20),
+#       axis.text = element_text(size=20),
+#       axis.text.x = element_text(angle = 90),
+#       legend.position = "none",
+#       strip.text = element_text(size = 25),
+#      plot.title = element_text(hjust = 0.5, size = 15))+
+#   coord_flip() #this will flip the graph
+control21
+
+## POPULATION 9 ##
+# Marestail5<-filter(.data = Marestail2,
+#                    pop=="7"|pop=="9")
+Marestail9<-filter(.data = Marestail1,
+                   pop=="9")
+
+control_21DAT <- glmmTMB(`21DAT_control` ~ Herbicide, beta_family(link = "logit"), data = Marestail9)
+glmmTMB:::Anova.glmmTMB(control_21DAT) 
+emmip(control_21DAT, ~ Herbicide, type = "response")
+#Herbicide
+pig.cells21<-emmeans(control_21DAT, ~Herbicide, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells21
+plot(pig.cells21, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld21<-CLD(pig.cells21$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld21
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd21<-as.data.frame(pig.cells21$emmeans)
+kable(nd21)
+#write.csv(nd21, file = "conf_intervals_25DAT.csv")
+
+# Graph
+control21<-ggplot(nd21, aes(x=reorder(Herbicide), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Marestail Control at 21 Days After Treatment by Population in WI", y="Marestail control (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed") #need to use hline because will flip later
+# facet_wrap(~pop)
+#   theme(axis.title = element_text(size=20),
+#       axis.text = element_text(size=20),
+#       axis.text.x = element_text(angle = 90),
+#       legend.position = "none",
+#       strip.text = element_text(size = 25),
+#      plot.title = element_text(hjust = 0.5, size = 15))+
+#   coord_flip() #this will flip the graph
+control21
+
+####Biomass Reduction by Population####
+biomass_reduction <- glmmTMB(`Biomass_reduction` ~ Herbicide*pop, beta_family(link = "logit"), data = Marestail3)
+glmmTMB:::Anova.glmmTMB(biomass_reduction)
+emmip(biomass_reduction, ~ Herbicide*pop, type = "response")
+#Herbicide by Location
+pig.cellsBR<-emmeans(biomass_reduction, ~Herbicide*pop, by="pop", contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cellsBR
+plot(pig.cellsBR, by="pop", comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cldBR<-CLD(pig.cellsBR$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cldBR
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+ndBR<-as.data.frame(pig.cellsBR$emmeans)
+kable(ndBR)
+
+# Graph
+biomass_red<-ggplot(ndBR, aes(x=reorder(Herbicide), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Biomass Reduction by Marestail Population at 21 Days After Treatment", y="Biomass Reduction (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed")+ #need to use hline because will flip later
+facet_wrap(~pop)
+ # theme(axis.title = element_text(size=20),
+ #     axis.text = element_text(size=20),
+ #     axis.text.x = element_text(angle = 90),
+ #     legend.position = "none",
+ #     strip.text = element_text(size = 25),
+ #    plot.title = element_text(hjust = 0.5, size = 15))
+ # coord_flip() #this will flip the graph
+biomass_red
+
+###  POPULATIONS 7  ####
+biomass_reduction7 <- glmmTMB(`Biomass_reduction` ~ Herbicide, beta_family(link = "logit"), data = Marestail7)
+glmmTMB:::Anova.glmmTMB(biomass_reduction7) 
+emmip(biomass_reduction7, ~ Herbicide, type = "response")
+#Herbicide
+pig.cells21<-emmeans(biomass_reduction7, ~Herbicide, contr ="pairwise", adjust="none",  type="response", alpha = 0.05)
+pig.cells21
+plot(pig.cells21, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+cld21<-CLD(pig.cells21$emmeans, alpha = 0.05, Letters = letters, adjust="none", reversed = TRUE)
+cld21
+#plot(lsmeans, ~control_42DAT, comparisons=TRUE, type="response", alpha=0.05, adjust="none")
+
+nd21<-as.data.frame(pig.cells21$emmeans)
+kable(nd21)
+#write.csv(nd21, file = "conf_intervals_25DAT.csv")
+
+# Graph
+biomass_red7<-ggplot(nd21, aes(x=reorder(Herbicide), y=response*100, color=Herbicide)) + 
+geom_point(size=4) + ylim(0,100) +
+#scale_color_manual(values=c("red", "grey")) +
+theme_bw() + labs(y="Marestail control (%)", x="Herbicides")+
+theme_bw() + labs(title = "Biomass Reduction at 21 Days After Treatment at Population 7", y="Biomass Reduction (%)", x="Herbicides")+
+geom_linerange(aes(ymin = lower.CL*100, ymax = upper.CL*100), size=1.5)+
+geom_hline(yintercept=90, col = "black", linetype = "dashed") #need to use hline because will flip later
+# facet_wrap(~pop)
+#   theme(axis.title = element_text(size=20),
+#       axis.text = element_text(size=20),
+#       axis.text.x = element_text(angle = 90),
+#       legend.position = "none",
+#       strip.text = element_text(size = 25),
+#      plot.title = element_text(hjust = 0.5, size = 15))+
+#   coord_flip() #this will flip the graph
+biomass_red7
+
+```
+#Correlation Control 21DAT and Biomass Reduction
+```{r}
+#Correlation Control 21 DAT and Biomass Reduction
+Marestail1 %>% glimpse()
+Marestail1 <- na.omit(Marestail1)
+head(Marestail1)
+res <- cor.test(Marestail1$`21DAT_control`, Marestail1$`Biomass_reduction`, 
+                    method = "pearson")
+res
+corr<-ggscatter(Marestail1, x = "`21DAT_control`", y = "Biomass_reduction", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Miles/(US) gallon", ylab = "Weight (1000 lbs)")
+corr
+```
+
