@@ -8,7 +8,11 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+
 #Loading Packages
+
+
 ```{r}
 .libPaths("C:/Users/alexa/Documents/Nebraska/Classes/Data Management, Visualization/Rlibrary")
 knitr::opts_chunk$set(echo = TRUE)

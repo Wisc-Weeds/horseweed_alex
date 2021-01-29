@@ -21,7 +21,7 @@ library(emmeans)
 
 
 ```{r load-data}
-# cleaning
+# cleaning data set
 horseweed <- read_csv("2020_Marestail_Data.csv") %>% 
   janitor::clean_names() %>% 
   pivot_longer(cols = x7dat_control_percent:x21dat_control_percent,
@@ -76,19 +76,11 @@ horseweed3 <- horseweed2 %>%
 horseweed3 %>% 
   filter(pop == 3 & dat == 14) %>% 
   unnest(anova)
+# You can check your ANOVA by filtering for each pop and dat
 ```
-
-
-
 
 
 ```{r emmeans_function}
-emmeans_function <- function(model) {
-  emmeans(model, ~ trt, cont="pairwise", adjust="none", type="response", alpha=0.05)
-}
-```
-
-```{r}
 horseweed4 <- horseweed3 %>% 
   mutate(
     emmeans = pmap(
@@ -103,6 +95,8 @@ horseweed4 <- horseweed3 %>%
     )
   ) 
 ```
+
+
 
 ```{r lsmeans}
 # full data frame with all means and CIs 
@@ -144,16 +138,26 @@ final_means <- horseweed5 %>%
 
 
 ```{r}
-# Now compared to the raw means
+# Now compared to the final_means with your raw means
 comparison <- horseweed %>% 
   filter(trt != "Check") %>% 
   group_by(trt, pop, dat) %>% 
   summarise(raw_mean = mean(weed_control)) %>% 
   left_join(final_means, by = c("trt", "pop", "dat")) %>% 
   select(trt, pop, dat, raw_mean, response) %>% 
-  mutate(diff = round(response - raw_mean, 2))
+  mutate(diff = round(response - raw_mean, 2)) %>% 
+  ungroup() %>% 
+  mutate(number = row_number())
 comparison
 ```
+
+```{r}
+comparison %>% 
+  ggplot(aes(x = number, y = diff, color = trt)) +
+  geom_point()
+```
+
+
 
 ```{r}
 comparison %>% 
