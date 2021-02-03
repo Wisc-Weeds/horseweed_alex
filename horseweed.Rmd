@@ -15,6 +15,7 @@ knitr::opts_chunk$set(
 ```{r}
 library(tidyverse)
 library(betareg)
+library(glmmTMB)
 library(car)
 library(emmeans)
 ```
@@ -50,7 +51,7 @@ horseweed1 <- horseweed %>%
 
 ```{r model-function}
 beta_model <- function(df) {
-  betareg(weed_control ~ trt, ink = "logit", data = df)
+  glmmTMB(weed_control ~ trt, beta_family(link = "logit"), data = df)
 }
 ```
 
@@ -125,7 +126,7 @@ horseweed5 <- horseweed4 %>%
 
 ```{r}
 # here is similar to emmeans but you have letters
-horseweed5 %>% 
+horseweed6 <- horseweed5 %>% 
   unnest(cld)
 # You can also filter and make specific data frames
 ```
@@ -145,8 +146,8 @@ comparison <- horseweed %>%
   group_by(trt, pop, dat) %>% 
   summarise(raw_mean = mean(weed_control)) %>% 
   left_join(final_means, by = c("trt", "pop", "dat")) %>% 
-  select(trt, pop, dat, raw_mean, emmean) %>% 
-  mutate(diff = round(emmean - raw_mean, 2)) %>% 
+  select(trt, pop, dat, raw_mean, response) %>% 
+  mutate(diff = round(response - raw_mean, 2)) %>% 
   ungroup() %>% 
   mutate(number = row_number())
 comparison
@@ -162,7 +163,7 @@ comparison %>%
 
 ```{r}
 comparison %>% 
-  ggplot(aes(x = raw_mean, y = emmean)) + 
+  ggplot(aes(x = raw_mean, y = response)) + 
   geom_jitter(alpha = 0.5)
 
 # Strong correlation between raw and fitter means (response) - You are good
@@ -171,6 +172,6 @@ comparison %>%
 
 ```{r}
 # 0.98 correlation
-cor.test(comparison$raw_mean, y = comparison$emmean, method=c("pearson"))
+cor.test(comparison$raw_mean, y = comparison$response, method=c("pearson"))
 ```
 
