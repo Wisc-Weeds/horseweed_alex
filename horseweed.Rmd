@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 
 ```{r}
 library(tidyverse)
-library(glmmTMB)
+library(betareg)
 library(car)
 library(emmeans)
 ```
@@ -49,23 +49,24 @@ horseweed1 <- horseweed %>%
 ```
 
 ```{r model-function}
-glmmTMB_model <- function(df) {
-  glmmTMB(weed_control ~ trt + (1|rep), beta_family(link = "logit"), data = df)
+beta_model <- function(df) {
+  betareg(weed_control ~ trt, ink = "logit", data = df)
 }
 ```
 
 
 ```{r model}
 horseweed2 <- horseweed1 %>% 
-  mutate(model = map(data, glmmTMB_model))
+  mutate(model = map(data, beta_model))
 ```
+
 
 
 
 
 ```{r anova}
 horseweed3 <- horseweed2 %>% 
-  mutate(anova = map(model, glmmTMB:::Anova.glmmTMB))
+  mutate(anova = map(model, Anova))
 ```
 
 
@@ -144,8 +145,8 @@ comparison <- horseweed %>%
   group_by(trt, pop, dat) %>% 
   summarise(raw_mean = mean(weed_control)) %>% 
   left_join(final_means, by = c("trt", "pop", "dat")) %>% 
-  select(trt, pop, dat, raw_mean, response) %>% 
-  mutate(diff = round(response - raw_mean, 2)) %>% 
+  select(trt, pop, dat, raw_mean, emmean) %>% 
+  mutate(diff = round(emmean - raw_mean, 2)) %>% 
   ungroup() %>% 
   mutate(number = row_number())
 comparison
@@ -161,7 +162,7 @@ comparison %>%
 
 ```{r}
 comparison %>% 
-  ggplot(aes(x = raw_mean, y = response)) + 
+  ggplot(aes(x = raw_mean, y = emmean)) + 
   geom_jitter(alpha = 0.5)
 
 # Strong correlation between raw and fitter means (response) - You are good
@@ -170,6 +171,6 @@ comparison %>%
 
 ```{r}
 # 0.98 correlation
-cor.test(comparison$raw_mean, y = comparison$response, method=c("pearson"))
+cor.test(comparison$raw_mean, y = comparison$emmean, method=c("pearson"))
 ```
 
