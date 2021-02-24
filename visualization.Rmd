@@ -24,7 +24,8 @@ population1 <- population %>%
   janitor::clean_names() %>% 
   mutate(pop = row_number()) %>% 
   dplyr::select(id, pop, county, lat, long, crop, date_collected, location) %>% 
-  rename(pop_id = id)
+  rename(pop_id = id) %>% 
+  mutate(pop_id = str_replace(pop_id, "M", "H"))
 ```
 
 
@@ -55,16 +56,18 @@ data1 <- data %>%
 
 ```{r}
 data2 <- data1 %>% 
-  left_join(population1, by = "pop")
+  left_join(population1, by = "pop") 
 ```
 
 
 ```{r}
 data3 <- data2 %>% 
   filter(trt != "Check") %>% 
-  mutate(pop_id = fct_relevel(pop_id, levels = "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10",
-                              "M11", "M12", "M13", "M14", "M15", "M16", "M17", "M18", "M19", "M20",
-                              "M21", "M22", "M23")) %>% 
+  mutate(pop_id = fct_relevel(pop_id, levels = "H1", "H2", "H3", "H4", "H5", "H6", 
+                              "H7", "H8", "H9", "H10",
+                              "H11", "H12", "H13", "H14", "H15", "H16", 
+                              "H17", "H18", "H19", "H20",
+                              "H21", "H22", "H23")) %>% 
   mutate(herbicide = fct_recode(trt,
                                 "2,4-D (#4)" = "2,4-D",
                                 "1x glyphosate (#9)" = "1x Gly",
@@ -104,7 +107,7 @@ theme_style <- theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 12
         legend.text = element_text(family = legend_family),
         legend.title = element_text(family = legend_family, size =12, face = "bold"),
         plot.subtitle = element_markdown(vjust = 2, size = 12, family = subtitle_family),
-#        plot.caption = element_text(size = 9, family = "Times New Roman", hjust = 1.1),
+        plot.caption = element_text(size = 9, family = subtitle_family, hjust = 0),
         axis.ticks.x = element_blank(),
         panel.grid = element_blank(),
         panel.border = element_blank()) 
@@ -124,8 +127,9 @@ data3 %>%
                        limits = c(0, 100), breaks=c(0, 25, 50, 75, 100),
                        labels= c("0 %", "25%", "50", "75%", "100%")) +
   geom_point(aes(x = 0.2, y = pop_id, color = county), size = 3) +
-  labs(title = "Status of <b style='color:darkgreen;'>horseweed</b> resistance in <b style='color:red;'>Wisconsin</b>", 
-       subtitle = "The figure shows the level of <b style='color:darkgreen;'>horseweed</b> control with 9 herbicides from 8 herbicide sites of action. <br>Imazethapyr (#2) and glyphosate (#9) are a concern for herbicide resistance in <b style='color:darkgreen;'>horseweed</b> populations. <br>Alert is needed to group #4 (2,4-D and dicamba) and mesotrione (#27) as reduced <b style='color:darkgreen;'>horseweed</b> <br> control is observed in most of the populations surveyed.",
+  labs(title = "<b style='color:darkgreen;'>Horseweed</b> response to herbicides in <b style='color:red;'>Wisconsin</b>", 
+       subtitle = "The figure shows the level of <b style='color:darkgreen;'>horseweed</b> control with 9 herbicides from 8 sites of action. Low level of <br>imazethapyr (#2) and glyphosate (#9) are a concern for herbicide resistance in <b style='color:darkgreen;'>horseweed</b> populations. <br>Group #4 (2,4-D and dicamba) and mesotrione (#27) have reduced <b style='color:darkgreen;'>horseweed</b> control in most<br> populations surveyed.",
+       caption = "Visualization: @maxwelco | Data: Wisc Weeds",
        x = "", y = "", color = "County") +
   ggsave("status.png", width = 9, height = 6, dpi = 600)
 ```
