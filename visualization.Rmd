@@ -56,7 +56,10 @@ data1 <- data %>%
 
 ```{r}
 data2 <- data1 %>% 
-  left_join(population1, by = "pop") 
+  left_join(population1, by = "pop") %>% 
+  mutate(county = str_replace(county, "Washjington", "Washington")) %>% 
+  mutate(county = str_replace(county, "Washington", "Jefferson"),
+         county = str_replace(county, "Columbia", "Dane"))
 ```
 
 
@@ -97,19 +100,25 @@ subtitle_family = "Arial"
 background <- "#1D1D1D"
 text_colour <- "white"
 axis_colour <- "white"
-plot_colour <- "black"
+plot_colour <- "#F5F5DC"
 
-theme_style <- theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 12, color = "black"),
+theme_style <- theme(axis.text.x = element_text(angle = 45, hjust = 1, 
+                                                size = 12, color = "black",
+                                                family = legend_family),
         axis.text.y = element_text(size = 12, family = font_family, color = "black"),
         plot.title.position = "plot",
         plot.title = element_markdown(vjust = 2, size = 20, 
                                   family = title_family, margin = margin(2,1,1,1)),
         legend.text = element_text(family = legend_family),
-        legend.title = element_text(family = legend_family, size =12, face = "bold"),
+        legend.title = element_text(family = title_family, size =12, face = "bold"),
         plot.subtitle = element_markdown(vjust = 2, size = 12, family = subtitle_family),
         plot.caption = element_text(size = 9, family = subtitle_family, hjust = 0),
         axis.ticks.x = element_blank(),
+        legend.background = element_blank(),
+        legend.box.background = element_blank(),
+        legend.key = element_blank(),
         panel.grid = element_blank(),
+        plot.background = element_rect(fill = plot_colour),
         panel.border = element_blank()) 
 
 theme_set(theme_bw() + theme_style)
@@ -118,6 +127,7 @@ theme_set(theme_bw() + theme_style)
 
 ```{r}
 data3 %>% 
+  filter(dat == "21") %>% 
   ggplot(aes(x = herbicide, y = pop_id, fill = weed_control)) +
   geom_tile(color = NA) +
   coord_flip() +
@@ -126,11 +136,162 @@ data3 %>%
   scale_fill_gradient(name = "% weed control", low = "red", high = "white",
                        limits = c(0, 100), breaks=c(0, 25, 50, 75, 100),
                        labels= c("0 %", "25%", "50", "75%", "100%")) +
-  geom_point(aes(x = 0.2, y = pop_id, color = county), size = 3) +
-  labs(title = "<b style='color:darkgreen;'>Horseweed</b> response to herbicides in <b style='color:red;'>Wisconsin</b>", 
-       subtitle = "The figure shows the level of <b style='color:darkgreen;'>horseweed</b> control with 9 herbicides from 8 sites of action. Low level of <br>imazethapyr (#2) and glyphosate (#9) are a concern for herbicide resistance in <b style='color:darkgreen;'>horseweed</b> populations. <br>Group #4 (2,4-D and dicamba) and mesotrione (#27) have reduced <b style='color:darkgreen;'>horseweed</b> control in most<br> populations surveyed.",
-       caption = "Visualization: @maxwelco | Data: Wisc Weeds",
+  geom_point(aes(x = 0.2, y = pop_id, color = county), pch = 15, size = 6) +
+  labs(title = "<b style='color:darkgreen;'>Horseweed</b> response to herbicides", 
+       subtitle = "The figure shows the level of <b style='color:darkgreen;'>horseweed</b> control with 9 herbicides from 8 sites of action. Low level of <br>imazethapyr (#2) and glyphosate (#9) control are a concern for herbicide resistance in <b style='color:darkgreen;'>horseweed</b> populations. <br>Group #4 (2,4-D and dicamba) and mesotrione (#27) have reduced <b style='color:darkgreen;'>horseweed</b> control in most<br> populations surveyed.",
+       caption = "Visualization: @maxwelco | Data: WiscWeeds",
        x = "", y = "", color = "County") +
   ggsave("status.png", width = 9, height = 6, dpi = 600)
 ```
+
+
+
+## Maps --------------------------------
+
+
+```{r}
+library(maps)
+library(ggthemes)
+library(ggrepel)
+```
+
+```{r}
+states = map_data("state") 
+df <- filter(states, region =="wisconsin")
+```
+
+```{r}
+counties <- map_data("county")
+county <- filter(counties, region %in% c("illinois", "wisconsin")) %>% 
+  mutate(subregion = str_to_title(subregion),
+         subregion = str_replace(subregion, "Mchenry", "McHenry"))
+```
+
+```{r}
+county %>% 
+  filter(subregion == "Washington")
+```
+
+
+```{r}
+map_pop <- data3 %>% 
+  distinct(county) %>% 
+  dplyr::select(county) %>% 
+  mutate(harvest = "Yes") %>% 
+  rename(subregion = county) %>% 
+  mutate(subregion = str_replace(subregion, "Washington", "Jefferson"),
+         subregion = str_replace(subregion, "Columbia", "Dane"))
+```
+
+```{r}
+data4 <- county %>% 
+ left_join(map_pop, by = "subregion")
+```
+
+```{r}
+id_pop <- data3 %>% 
+  distinct(long, lat, county, pop_id) %>% 
+  mutate(subregion = str_replace(county, "Washington", "Jefferson"),
+         subregion = str_replace(county, "Columbia", "Dane"))
+```
+
+
+```{r message = FALSE, warning=FALSE}
+library(extrafont)
+library(ggtext)
+#extrafont::loadfonts()
+
+font_family <- 'Helvetica'
+title_family <- "Arial Black"
+legend_family <- "Comic Sans MS"
+subtitle_family = "Arial"
+background <- "#1D1D1D"
+text_colour <- "white"
+axis_colour <- "white"
+plot_colour <- "#F5F5DC"
+
+theme_style <- theme(
+        plot.title.position = "plot",
+        plot.subtitle = element_markdown(vjust = 2, size = 12, family = subtitle_family),
+        plot.caption = element_text(size = 9, family = subtitle_family, hjust = 0),
+        plot.title = element_markdown(vjust = 2, size = 20, 
+                                  family = title_family, margin = margin(2,1,1,1)),
+        legend.text = element_text(family = legend_family),
+        legend.title = element_text(family = title_family, size =12, face = "bold"),
+        legend.background = element_blank(),
+        legend.box.background = element_blank(),
+        panel.grid = element_blank(),
+        plot.background = element_rect(fill = plot_colour),
+        panel.border = element_blank()) 
+
+theme_set(theme_void() + theme_style)
+```
+
+
+
+```{r}
+ggplot(data4, mapping = aes(x = long, y = lat, group = group)) + 
+  geom_polygon(color = "black", fill = "grey90") +
+  geom_polygon(data = data4 %>% 
+                 filter(!is.na(harvest)), aes(x = long, y = lat,
+                                             fill = subregion, 
+                                             group = group), 
+               color = "#282728") +
+  ylim(41.5, 47) +
+  xlim(-93, -86.5) +
+  labs(fill = "County",
+       title = "<b style='color:darkgreen;'>Horseweed</b> populations identification",
+       subtitle = "18 <b style='color:darkgreen;'>horseweed</b> populations were harvested in <b style='color:#c5050c;'>Wisconsin</b> and 3 populations in <b style='color:#13294B;'>Illinois</b>") +
+  geom_point(data = id_pop, aes(x = long, y = lat, group = pop_id)) +
+  scale_color_brewer(palette = "Paired") +
+  scale_fill_brewer(palette = "Paired") +
+  geom_segment(aes(x = -91.6, y = 42.5, xend = -87.3, yend = 42.5),
+               color = "black", size = 1.5) +
+  annotate("text", x = -92.4, y = 42.75, label = "Wisconsin", size = 5,
+           family = title_family, color = "#c5050c") +
+  geom_segment(aes(x = -91.6, y = 42.5, xend = -91.6, yend = 43),
+              arrow = arrow(length = unit(0.3, "cm")),
+               color = "black", size =2) +
+  annotate("text", x = -86.7, y = 42.25, label = "Illinois", size = 5,
+           family = title_family, color = "#13294B") +
+    geom_segment(aes(x = -87.3, y = 42.5, xend = -87.3, yend = 42),
+              arrow = arrow(length = unit(0.3, "cm")),
+               color = "black", size = 2) +
+  geom_label_repel(data = id_pop, aes(label = pop_id, group = 1, fill = subregion),
+                  family = legend_family,
+                  max.overlaps = 100,
+                  box.padding   = 0.5, 
+                  point.padding = 0.2,
+                  segment.color = 'grey50', 
+                  size = 3,
+                  seed = TRUE,
+                  show.legend = FALSE) +
+#  coord_map() +
+
+
+  
+  ggsave("map.png", width = 8, height = 7, dpi = 300)
+```
+
+geom_polygon(aes(group = group, fill = county), color="grey") +
+  geom_polygon(aes(group = group), color="grey")  +
+  +
+
+```{r}
+labs(title="Dicamba Pesticide Use Limitation Areas - County list in Wisconsin", subtitle = "Wisconsin counties in which an omnidirectional 57-foot buffer must be included in addition to the 110-foot downwind buffer for dicamba applications in dicamba-tolerant soybeans to protect endangered species",  fill="", y="Latitude", x="Longitude") +
+  north(df, location = 'topright', symbol = 1, anchor = c(x = -92.5, y = 47.2)) +
+  scalebar(data=df, dist = 100, dd2km = T, model = 'International', location = "topright") + 
+      theme_economist_white() +
+      #geom_text(data=Map, mapping=aes(long, lat, label = subregion), size=1) +
+        theme(axis.text=element_text(size=17, color="black"), 
+        axis.title=element_text(size=20,face="bold"), 
+        panel.background = element_rect(fill="white", color = "black"), 
+        panel.grid.major = element_line(color = "white"), 
+  panel.grid.minor = element_blank(), plot.subtitle = element_text(face="bold", size=5.5, color="black", hjust=1.0),
+  legend.position="none", legend.text = element_text(size = 16, colour = "black"), legend.key = element_rect(fill=NA), panel.border = element_rect(fill=NA,color="black", size=0.5, linetype="solid"), plot.title = element_text(face="bold", size=17, color="red", hjust=1.7) ,
+legend.background = element_rect(fill =NA), legend.key.width = unit(2.2, "line"), legend.title=element_blank()) + 
+    ggsave("map3.png",  units="in", width=8, height=8, dpi=600)
+```
+
+
 
